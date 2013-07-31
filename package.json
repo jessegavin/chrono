@@ -1,17 +1,25 @@
 {
   "name": "chrono-node",
+  "author" : "Wanasit Tanakitrungruang <wanasit@berrysoftstudio.com>",
   "description": "A natural language date parser in Javascript",
   "homepage": "http://github.com/berryboy/chrono",
   "repository": { 
       "type" : "git",
       "url"  : "https://github.com/berryboy/chrono.git"
-    },
+  },
+  "keywords" : [
+    "date",
+    "parse",
+    "parsing",
+    "natural language",
+    "javascript"
+  ]
   "version": "0.1.0",
-  "directories" : { 
-      "improvers"     : "./improvers", 
-      "parsers"       : "./parsers", 
-      "test-nodeunit" : "./test-nodeunit",
-      "test-qunit"    : "./test-qunit"
-    },
+  "dependencies" : [
+    "moment": "2.1.x"
+  ],
+  "devDependencies" : {
+    "qunit" : "0.5.x"
+  }
   "main": "./chrono"
 }

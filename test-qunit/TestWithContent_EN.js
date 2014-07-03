@@ -146,7 +146,8 @@ test("Test - Email 4", function() {
 	
 	var result = results[0];
 	if(result){
-		ok(result.text == 'April 30, 2013, 20:38:26 EDT', result.text +' != '+'April 30, 2013, 20:38:26')
+		ok(result.text == 'April 30, 2013, 20:38:26 EDT', 
+			result.text +' != '+'April 30, 2013, 20:38:26 EDT')
 	}
 	
 	
@@ -241,6 +242,13 @@ test("Test - Email 5", function() {
 		ok(result.start.minute == 00, JSON.stringify(result.start));
 	}
 });
+
+test("Test - Email 6", function() {
+
+	var text = "13.228.8470 Off 713.228.4147 Fax 909 Texas Avenue Suite 1314 Houston, TX 77002 www.syncrasy.com Sales: 713.228.4407"
+	var results = chrono.parse(text);
+	ok(results.length == 0, JSON.stringify(results.length))
+})
 
 
 

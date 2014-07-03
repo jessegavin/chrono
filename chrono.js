@@ -4,35 +4,58 @@
 // license : MIT
 (function () {
   
-  var chrono = {}
+  var chrono = function(){
+    for(var attr in chrono){
+      this[attr] = chrono[attr]
+    }
+
+    this.parsers = {}
+    for(var p in chrono.parsers) this.parsers[p] = chrono.parsers[p];
+
+    this.refiners = {}
+    for(var r in chrono.refiners) this.refiners[r] = chrono.refiners[r];
+
+    this.timezoneMap = {}
+    for(var r in chrono.timezoneMap) this.timezoneMap[r] = chrono.timezoneMap[r];
+  }
+
+  chrono.timezoneMap = {};
   chrono.parsers = {};
   chrono.refiners = {};
   
   chrono.parse = function(text, referrenceDate, option) {
     
+    option = option || {}
+
+    if(typeof(referrenceDate) === 'string'){
+      var _ref = moment(referrenceDate).zone(referrenceDate);
+      option.timezoneOffset = _ref.zone();
+      referrenceDate        = _ref.toDate();
+    }
+
     var results = this.integratedParse(text, referrenceDate, option);
-    var results = this.integratedRefine(text, results);
+    var results = this.integratedRefine(text, results, option);
     
     return results;
   }
   
-  chrono.parseDate = function(text, referrenceDate, option) {
+  chrono.parseDate = function(text, referrenceDate, timezoneOffset) {
     
-    var results = this.parse(text, referrenceDate, option);
+    var results = this.parse(text, referrenceDate);
     
-    if(results.length >= 1) return results[0].startDate;
+    if(results.length >= 1) return results[0].start.date(timezoneOffset);
     else return null;
   }
   
   if(typeof exports == 'undefined'){
     //Browser Code
-    var moment = moment || window.moment;
+    moment = moment || window.moment;
     window.chrono = chrono;
   }
   else{
     //Node JS
+    if(typeof moment == 'undefined') eval("var moment = require('./moment');");
     var fs = require('fs');
-    var moment = require('./moment');
     
     function loadModuleDirs(dir){
       
@@ -51,7 +74,8 @@
         }
       }
     }
-      
+    
+    eval(fs.readFileSync(__dirname + '/timezone.js')+'');
     eval(fs.readFileSync(__dirname + '/parsers/ParseResult.js')+'');
     eval(fs.readFileSync(__dirname + '/parsers/Parser.js')+'');
     eval(fs.readFileSync(__dirname + '/parsers/IntegratedParsing.js')+'');

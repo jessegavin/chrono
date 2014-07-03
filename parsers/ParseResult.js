@@ -1,6 +1,4 @@
-/*
-  Parser, is base object of every chrono parser. The parser must provides these following method  
-  
+/* 
   DateCompoents {
     
     @attribute {Integer} year
@@ -9,8 +7,13 @@
     @attribute {Integer} hour
     @attribute {Integer} minute
     @attribute {Integer} second
+    @attribute {Integer} timezoneOffset
+    @attribute {String}  dayOfWeek
+    @attribute {String}  meridiem
     
-    @method { Date } date 
+    @method {Date} date() 
+    @method {void} assign(String, Value) 
+    @method {void} imply(String, Value)
     
     @attribute { Array<String> } impliedComponents
   }
@@ -39,10 +42,10 @@
     throw 'Cannot find the chrono main module';
   
   function DateComponents(components) {
-    this.year = components.year;
-    this.month = components.month;
-    this.day = components.day;
-    this.hour = components.hour;
+    this.year   = components.year;
+    this.month  = components.month;
+    this.day    = components.day;
+    this.hour   = components.hour;
     this.minute = components.minute;
     this.second = components.second;
     this.timezoneOffset = components.timezoneOffset;
@@ -56,22 +59,55 @@
     }
     
     this.isCertain = function(component) {
-      return this.impliedComponents ? this.impliedComponents.indexOf(component) < 0 : true;
+      return (this[component] !== undefined && this[component] !== null) 
+        && (this.impliedComponents ? this.impliedComponents.indexOf(component) < 0 : true);
     }
     
     this.date = function(timezoneOffset) { 
       
+      if(timezoneOffset === undefined || timezoneOffset === null){
+        timezoneOffset = this.timezoneOffset;
+      }else{
+        if(this.isCertain('timezoneOffset')) 
+          timezoneOffset = this.timezoneOffset;
+      }
+
       if(timezoneOffset === undefined || timezoneOffset === null)
         timezoneOffset = new Date().getTimezoneOffset()
-      timezoneOffset -= (this.timezoneOffset || new Date().getTimezoneOffset());
       
       var dateMoment = moment(new Date(this.year,this.month,this.day));
-      dateMoment.hours(this.hour);
+      
+      //If there is only date representation, move the represent time to 12 AM
+      if(this.hour === undefined || this.hour === null) dateMoment.hours(12);
+      else dateMoment.hours(this.hour);
+      
       dateMoment.minutes(this.minute);
       dateMoment.seconds(this.second);
-      dateMoment.add('minutes', timezoneOffset);
-      
+
+      dateMoment.add('minutes', timezoneOffset - new Date().getTimezoneOffset());
+      //console.log(timezoneOffset)
       return dateMoment.toDate();
+    }
+
+    this.assign = function(component, value) {
+      this[component] = value;
+      if(this.impliedComponents && this.impliedComponents.indexOf(component) >= 0){
+        var index = this.impliedComponents.indexOf(component);
+        this.impliedComponents.splice(index, 1);
+      }
+    }
+
+    this.imply = function(component, value) {
+      this[component] = value;
+      if(!this.impliedComponents) this.impliedComponents = [];
+      if(this.impliedComponents.indexOf(component) < 0){
+        this.impliedComponents.push(component);
+      }
+    }
+
+    //Checking Value
+    if(this.isCertain('hour') && this.hour > 12){
+      this.assign('meridiem', 'pm'); 
     }
   }
   

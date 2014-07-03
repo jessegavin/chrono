@@ -41,6 +41,7 @@
       dateComponents.hour  = timeComponents.hour;
       dateComponents.minute = timeComponents.minute;
       dateComponents.second = timeComponents.second;
+      dateComponents.meridiem = timeComponents.meridiem;
       dateComponents.impliedComponents = dateComponents.impliedComponents || [];
       result.start = new chrono.DateComponents(dateComponents);
       
@@ -64,7 +65,10 @@
       new_results.push(new chrono.ParseResult(result));
       i++;
     }
-    return results;
+    
+    //if we haven't merged the last result
+    if(i < results.length) new_results.push(results[i])
+    return new_results;
   }
   
   chrono.refiners.MergeComponentsRefine = {

@@ -35,34 +35,30 @@
       if(result.start.minute === undefined) impliedComponents.push('minute')
       
       impliedComponents.forEach(function(component) {
-        if(refImpliedComponents.indexOf(component) < 0 && refResult.start[component]){
-          result.start[component] = refResult.start[component]
-        } 
+        if(refResult.start.isCertain(component)){
+          result.start.imply(component, refResult.start[component])
+        }
       }); 
+
+      result.startDate = result.start.date();
       
-      result.start.impliedComponents = impliedComponents;
-      
-      //Tune day of week
-      if(impliedComponents.indexOf('day') >= 0 && 
-        impliedComponents.indexOf('month') >= 0 &&
-        result.start.dayOfWeek !== undefined && impliedComponents.indexOf('dayOfWeek') < 0){
+      //Move day & month to match dayOfWeek
+      if(!result.start.isCertain('day') && 
+        !result.start.isCertain('month') &&
+        result.start.isCertain('dayOfWeek')){
         
         var date = moment(result.start.date());
         date.day(result.start.dayOfWeek)
-        result.start.day = date.date();
+        result.start.day   = date.date();
         result.start.month = date.month();
       }
       
       if(result.start.dayOfWeek === undefined || impliedComponents.indexOf('dayOfWeek') >= 0){
-        
         var date = moment(result.start.date());
-        result.start.dayOfWeek = date.day();
-        
-        if(impliedComponents.indexOf('dayOfWeek') < 0){
-          result.start.impliedComponents.push('dayOfWeek')
-        }
+        result.start.imply('dayOfWeek', date.day());
       }
-      
+
+      result.startDate = result.start.date();
     }
     return results;
   }

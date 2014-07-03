@@ -8,16 +8,8 @@
   if(typeof chrono == 'undefined')
     throw 'Cannot find the chrono main module';
   
-  var PATTERN = /(today|tonight|tomorrow|yesterday|last\s*night|([1-9]+)\s*day(s)\s*ago|([0-9]{1,2})(\.|\:|\：)([0-9]{1,2}).*|([0-9]{1,2}\s*\W?\s*)?([0-9]{1,2})\s*(AM|PM)|at\s*([0-9]{1,2}|noon|midnight))(\W|$)/i;
+  var PATTERN = /(today|tonight|tomorrow|yesterday|last\s*night|([0-9]+)\s*day(s)\s*ago|([0-9]{1,2})(\.|\:|\：)([0-9]{2})|([0-9]{1,2}\s*\W?\s*)?([0-9]{1,2})\s*(AM|PM)|at\s*([0-9]{1,2}|noon|midnight)|(noon|midnight))(\W|$)/i;
   
-  /**
-   * GeneralDateParser - Create a parser object
-   *
-   * @param  { String }           text - Orginal text to be parsed
-   * @param  { Date, Optional }   ref  - Referenced date
-   * @param  { Object, Optional } opt  - Parsing option
-   * @return { CNParser } 
-   */
   function GeneralDateParser(text, ref, opt){
     
     opt = opt || {};
@@ -28,14 +20,6 @@
     
     parser.extract = function(full_text,index){ 
       
-      var results = this.results();
-      var lastResult = results[results.length -1];
-      if( lastResult ){
-        //Duplicate...
-        if( index < lastResult.index + lastResult.text.length )
-          return null;
-      }
-      
       var matchedTokens = full_text.substr(index).match(PATTERN);
       if(matchedTokens == null){
         finished = true;
@@ -44,34 +28,42 @@
       
       var impliedComponents = null;
       var text = matchedTokens[0].toLowerCase();
-      text = matchedTokens[0].substr(0, matchedTokens[0].length - matchedTokens[11].length);
+      text = matchedTokens[0].substr(0, matchedTokens[0].length - matchedTokens[12].length);
       
+      var ref_moment = moment(ref);
+      if(opt.timezoneOffset !== undefined) 
+        ref_moment = ref_moment.zone(opt.timezoneOffset)
+
       var date = null;
       var lowercase_text = text.toLowerCase();
       if(lowercase_text == 'today' || lowercase_text == 'tonight'){
-        date = moment(ref).clone();
+        date = ref_moment.clone();
       }
       else if(lowercase_text == 'tomorrow'){
-        if(moment(ref).hour() < 4) date = moment(ref).clone().hour(6);
-        else date = moment(ref).clone().add('d',1);
+        if(ref_moment.hour() < 4) date = ref_moment.clone().hour(6);
+        else date = ref_moment.clone().add('d',1);
       }
       else if(lowercase_text == 'yesterday')
-        date = moment(ref).clone().add('d',-1);
+        date = ref_moment.clone().add('d',-1);
       else if(lowercase_text.match('last'))
-        date = moment(ref).clone().add('d',-1);
+        date = ref_moment.clone().add('d',-1);
       else if(lowercase_text.match('ago')){
         var days_ago = matchedTokens[2];
         days_ago = parseInt(days_ago);
-        date = moment(ref).clone().add('d',-days_ago);
+        date = ref_moment.clone().add('d',-days_ago);
       }else{
+        if(full_text.charAt(index-1).match(/\d/)) return null;
+        if(full_text.match(/\d+(\.\d+)%/)) return null;
+        
         while(full_text.charAt(index) == ' ') index++;
+        
         impliedComponents = ['year', 'month', 'day'];
-        date = moment(ref).clone();
+        date = ref_moment.clone();
         text = '';
       }
-        
+       
       var result = new chrono.ParseResult({
-        referenceDate:ref,
+        referenceDate:ref_moment.toDate(),
         text:text,
         index:index,
         start:{
@@ -82,9 +74,11 @@
         }
       })
       
+
       var resultWithTime = parser.extractTime(full_text,result);
       result = resultWithTime || result;
 
+      if(result.text.replace(/\s/g,'').length == 0) return null; 
       if(lowercase_text.match('night')){
         
         if(!resultWithTime){ // Midnight

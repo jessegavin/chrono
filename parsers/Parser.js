@@ -45,6 +45,9 @@
    */
   function Parser(text, ref, opt){
     
+    opt = opt || {};
+    
+    var timezoneMap    = opt.timezoneMap || chrono.timezoneMap;
     var searchingIndex = 0;
     var searchingText = text;
     var searchingFinished = false;
@@ -133,22 +136,17 @@
       var impliedComponents1 = result1.start.impliedComponents || [];
       var impliedComponents2 = result2.start.impliedComponents || [];
       
-      impliedComponents1.forEach(function(component) {
-        if(!components2.impliedComponents || components2.impliedComponents.indexOf(component) < 0){
-          components1[component] = components2[component]
-          var index = components1.impliedComponents.indexOf(component);
-          components1.impliedComponents.splice(index, 1);
+      impliedComponents1.forEach(function(unknown_component) {
+        if(components2.isCertain(unknown_component)){
+          components1.assign(unknown_component, components2[unknown_component]);
         } 
       });
 
-      impliedComponents2.forEach(function(component) {
-        if(!components1.impliedComponents || components1.impliedComponents.indexOf(component) < 0){
-          components2[component] = components1[component]
-          var index = components2.impliedComponents.indexOf(component);
-          components2.impliedComponents.splice(index, 1);
+      impliedComponents2.forEach(function(unknown_component) {
+        if(components1.isCertain(unknown_component)){
+          components2.assign(unknown_component, components1[unknown_component]);
         }
       });
-      
       
       if(moment(components2.date()).diff(moment(components1.date())) > 0){ 
         
@@ -183,9 +181,8 @@
      */
     parser.extractTime = function(text, result){
       
-      var SUFFIX_PATTERN = /^\s*,?\s*(at|from)?\s*,?\s*([0-9]{1,4}|noon|midnight)((\.|\:|\：)([0-9]{1,2})((\.|\:|\：)([0-9]{1,2}))?)?(\s*(AM|PM))?/i;
-      var TO_SUFFIX_PATTERN = /^\s*(\-|\~|\〜|to|\W)\s*([0-9]{1,4})((\.|\:|\：)([0-9]{1,2})((\.|\:|\：)([0-9]{1,2}))?)?(\s*(AM|PM))?/i;
-      
+      var SUFFIX_PATTERN = /^\s*,?\s*(at|from)?\s*,?\s*([0-9]{1,4}|noon|midnight)((\.|\:|\：)([0-9]{1,2})((\.|\:|\：)([0-9]{1,2}))?)?(\s*(AM|PM))?(\W|$)/i;
+
       if(text.length <= result.index + result.text.length) return null;
       text = text.substr(result.index + result.text.length);
       
@@ -216,6 +213,8 @@
         hour   = (hour - minute)/100;
       }
       
+
+
       if(matchedTokens[8]){
         
         second = matchedTokens[8];
@@ -236,8 +235,10 @@
         result.start.meridiem = matchedTokens[10].toLowerCase();
       }
       if(hour >= 12) result.start.meridiem = 'pm';
-      
-      result.text = result.text + matchedTokens[0];
+      if(hour > 24) return null;
+
+      result.text = result.text + matchedTokens[0].substr(0, 
+        matchedTokens[0].length - matchedTokens[11].length);
       
       if(result.start.hour == undefined){
         result.start.hour = hour;
@@ -245,9 +246,10 @@
         result.start.second = second;
       }
       
+      var TO_SUFFIX_PATTERN = /^\s*(\-|\~|\〜|to|\?)\s*([0-9]{1,4})((\.|\:|\：)([0-9]{1,2})((\.|\:|\：)([0-9]{1,2}))?)?(\s*(AM|PM))?/i;
+      text = text.substr(matchedTokens[0].length - matchedTokens[11].length);
+      matchedTokens = text.match(TO_SUFFIX_PATTERN)
       
-      text = text.substr(matchedTokens[0].length);
-      var matchedTokens = text.match(TO_SUFFIX_PATTERN)
       if( !matchedTokens ) {
         
         //Time in POINT format.
@@ -274,6 +276,7 @@
         if(minute >= 60) return null;
         
       }else if(hour > 100){
+        if(!matchedTokens[10]) return null;
         
         minute = hour%100;
         hour   = (hour - minute)/100;
@@ -308,9 +311,7 @@
             if(result.start.hour != 12) result.start.hour += 12;
           }
           
-          result.start.meridiem = matchedTokens[10].toLowerCase();
-          result.start.impliedComponents = result.start.impliedComponents || [];
-          result.start.impliedComponents.push('meridiem');
+          result.start.imply('meridiem', matchedTokens[10].toLowerCase())
         }
       }
       
@@ -337,12 +338,13 @@
     
     parser.extractTimezone = function(text, result) {
       
-      var PATTERN = /^\s*(GMT|UTC)(\+|\-)(\d{1,2})(\d{2})/;
+      var PATTERN = /^\s*(GMT|UTC)?(\+|\-)(\d{1,2}):?(\d{2})/;
       if(text.length <= result.index + result.text.length) return null;
       text = text.substr(result.index + result.text.length);
-      
+
       var matchedTokens = text.match(PATTERN);
       if(matchedTokens){
+
         var timezoneOffset = parseInt(matchedTokens[3])*60 + parseInt(matchedTokens[4])
         var timezoneOffset = parseInt(matchedTokens[2] + timezoneOffset)*(-1);
         if(result.end) result.end.timezoneOffset = timezoneOffset;
@@ -351,18 +353,19 @@
         text = text.substr(matchedTokens[0].length);
       }
       
-      var PATTERN = /^\s*\(?([A-Z]{3,4})\)?/;
+      var PATTERN = /^\s*\(?([A-Z]{1,4})\)?(\W|$)/;
       var matchedTokens = text.match(PATTERN);
-      if(matchedTokens){
+      if(matchedTokens && timezoneMap[matchedTokens[1]] !== undefined){
         var timezoneAbbr = matchedTokens[1];
+        var timezoneOffset =- timezoneMap[timezoneAbbr];
+
         if(result.start.timezoneOffset === undefined){
-          //var timezoneOffset = ??
-          //if(result.end) result.end.timezoneOffset = timezoneOffset;
-          //result.start.timezoneOffset = timezoneOffset;
-          //result.text += matchedTokens[0];
+          result.start.timezoneOffset = timezoneOffset;
+          if(result.end) result.end.timezoneOffset = timezoneOffset;
         }
         
-        result.text += matchedTokens[0];
+        result.text += matchedTokens[0].substring(0, matchedTokens[0].length 
+          - matchedTokens[2].length);
       }
       
       return result;
@@ -409,49 +412,61 @@
       if(searchingFinished) return null;
       
       //Search for the pattern
-  		var index  = searchingText.search( this.pattern() );
-  		if(index < 0) {
-  		  searchingFinished = true;
-  		  return null; 
-  		}
-  		
-  		//Extract the result
-  		var matchedIndex = index + searchingIndex;
-  		var result  = this.extract(text, matchedIndex);
-  		if(result){ 
-  		  
-  		  if(searchingResults.length > 0){
-  		   var oldResult = searchingResults[searchingResults.length - 1];
-  		   var overlapResult = this.mergeOverlapResult(text, oldResult, result);
-  		   
-  		   result = overlapResult || result;
-  		  }
-  		  
-  		  if(result.start.hour === undefined || (result.end && result.end.hour === undefined)){
-  		    var timedResult = this.extractTime(text, result);
-  		    result = timedResult || result; 
-  		  }
-  		  
-  		  if(result.start.timezoneOffset === undefined || (result.end && result.end.timezoneOffset === undefined)){
-  		    var resultWithTimezone = this.extractTimezone(text, result);
-  		    result = resultWithTimezone || result; 
-  		  }
-  		  
-  		  if(result.start.hour === undefined)
-  		    result.startDate = moment(result.startDate).startOf('day').hours(12).toDate();
+      var index  = searchingText.search( this.pattern() );
+      if(index < 0) {
+        searchingFinished = true;
+        return null; 
+      }
+      
+      //Extract the result
+      var matchedIndex = index + searchingIndex;
+      var result  = this.extract(text, matchedIndex);
+      
+      if(!result){ // Failed to extract the date result, MOVE ON
+        searchingText = searchingText.substr(index + 1);
+        searchingIndex = matchedIndex + 1;
+        return null;
+      }
+      
+      // Try extracting time infomation
+      if(result.start.hour === undefined || (result.end && result.end.hour === undefined)){
+        var timedResult = this.extractTime(text, result);
+        result = timedResult || result; 
+      }
+      
+      // Try extracting timezone infomation
+      if(result.start.timezoneOffset === undefined || (result.end && result.end.timezoneOffset === undefined)){
+        var resultWithTimezone = this.extractTimezone(text, result);
+        result = resultWithTimezone || result; 
         
-        if(result.end && result.end.hour === undefined)
-    		  result.endDate = moment(result.endDate).startOf('day').hours(12).toDate();
-        
-        this.extractConcordance(text, result);
-        
-  		  searchingResults.push(result); 
-  		}
-  		
-  		//Move on
-  		searchingText = searchingText.substr(index + 1);
-  		searchingIndex = matchedIndex + 1;
-  		return result;
+        if(opt.timezoneOffset){ //Fallback to opt.timezoneOffset
+          if(result.start.timezoneOffset === undefined){
+            result.start.imply('timezoneOffset', opt.timezoneOffset);
+          }
+  
+          if(result.end && result.end.timezoneOffset === undefined){
+            result.end.imply('timezoneOffset', opt.timezoneOffset);
+          }
+        }
+      }
+
+      
+      
+      // Try merging overlap results
+      if(searchingResults.length > 0){
+       var oldResult = searchingResults[searchingResults.length - 1];
+       var overlapResult = this.mergeOverlapResult(text, oldResult, result);
+       
+       result = overlapResult || result;
+      }
+      
+      // Extract Concordance
+      this.extractConcordance(text, result);
+      
+      searchingResults.push(result); 
+      searchingText  = text.substr(result.index + result.text.length + 1);
+      searchingIndex = result.index + result.text.length + 1;
+      return result;
   	}
   	
   	/**

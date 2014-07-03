@@ -29,7 +29,7 @@ test("Test - Override Base Parser", function() {
 	
 	//
 	var extract_called = 0;
-	var expected_result = new chrono.ParseResult({ start:{}, text:'', index:0 });
+	var expected_result = new chrono.ParseResult({ start:{day:1, month:1, year: 2012}, text:'pattern', index:0 });
 	parser.pattern = function () { return /pattern/ }
 	parser.extract = function(text, index) {
 		
@@ -65,6 +65,43 @@ test("Test - Override Base Parser", function() {
 	ok(parser.results()[0] == expected_result);
 	ok(parser.results()[1] == expected_result);
 });
+
+test("Test - Create Custom Parser", function() {
+	
+	var text = '01234-pattern-01234-pattern';
+	var extract_called = 0;
+  
+	chrono.parsers.TestCustomParser = function(text, ref, opt) {
+	  var parser = chrono.Parser(text, ref, opt);
+	  parser.pattern = function () { return /pattern/ }
+  	parser.extract = function(text, index) {
+  	  
+      var expected_result = new chrono.ParseResult({ start:{day:1, month:1, year: 2012}, text:'pattern', index:0 });
+      
+  		if(extract_called == 0){
+  			ok(index == 6, 'matched index0:' + index);
+  			expected_result.index = 6
+  		} 
+  		else if(extract_called == 1){
+        
+  			ok(index == 20, 'matched index1:' + index);
+  			expected_result.index = 20
+  		}
+
+  		extract_called++;
+  		return new Object(expected_result);
+  	}
+  	
+  	return parser;
+	} 
+	
+	var results = chrono.parse(text)
+	ok(results.length == 2, JSON.stringify(results));
+	ok(results[0] && results[0].index == 6);
+	ok(results[1] && results[1].index == 20);
+	delete chrono.parsers.TestCustomParser;
+});
+
 
 test("Test - Day of Week Parser", function() {
 	
@@ -301,3 +338,82 @@ test("Test - Integrated Parsing", function() {
 	}
 	
 });
+
+
+test("Test - Obj Instanciate", function() {
+
+	var _chrono = new chrono();
+
+	ok(_chrono, 'Init: chrono');
+	ok(_chrono.parse, 'Init: chrono.parse');
+	ok(typeof(_chrono.parse) === 'function', 'Init: chrono.parse');
+
+
+	var results = _chrono.parse('2012-8-7')
+	ok(results, JSON.stringify(results));
+	ok(results.length > 0, JSON.stringify(results));
+
+	// Try delete a parser
+	delete _chrono.parsers.InternationalStandardParser
+	results = _chrono.parse('2012-8-7')
+	ok(results, JSON.stringify(results));
+	ok(results.length === 0, JSON.stringify(results));
+
+	// Delete a parser doesn't effect the global parsing
+	results = chrono.parse('2012-8-7')
+	ok(results, JSON.stringify(results));
+	ok(results.length > 0, JSON.stringify(results));
+
+
+	// Try update the timezone
+	_chrono.timezoneMap['CST'] = 1000
+	ok(_chrono.timezoneMap['CST'] != chrono.timezoneMap['CST'], chrono.timezoneMap['CST']);
+});
+
+
+test("Test - Obj Instanciate 2", function() {
+
+	var c1 = new chrono();
+	c1.timezoneMap['CST'] = 1000;
+
+	var c2 = new chrono();
+	c2.timezoneMap['CST'] = -1000;
+
+	//Set different timezones
+	ok(c1.timezoneMap['CST'] != c2.timezoneMap['CST'], c1.timezoneMap['CST']);
+
+	var date1 = c1.parseDate('Today 1.00 AM (CST)');
+	var date2 = c2.parseDate('Today 1.00 AM (CST)');
+	ok(date1.getTime() != date2.getTime(), date1);
+	
+});
+
+
+test("Test - Obj Instanciate 3", function() {
+
+	var _chrono = new chrono();
+	var result = _chrono.parseDate('Thursday', new Date(2013,11,2))
+	var expectDate = new Date(2013, 11, 5, 12);
+
+	ok(result.getTime() == expectDate.getTime(), result);
+
+	_chrono.refiners.PreferPastLastWeekRefiner = {
+  		refine: function(text, results) {
+
+  			results.forEach(function(result){
+  				if(result.start.isCertain('dayOfWeek') && !result.start.isCertain('day')){
+  					result.start.imply('day', result.start.day - 7)
+  				}
+  			})
+
+  			return results;
+  		}
+	}
+
+	var result = _chrono.parseDate('Thursday', new Date(2013,11,2))
+	var expectDate = new Date(2013, 10, 28, 12);
+	ok(result.getTime() == expectDate.getTime(), result);
+
+});
+
+
